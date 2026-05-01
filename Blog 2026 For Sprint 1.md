@@ -13,11 +13,11 @@ Entry leads and sub-teams revise current Top 10 entries
 
 Focus areas:
 
-Updated definitions
+-Updated definitions
 
-Modern, relevant examples
+-Modern, relevant examples
 
-Stronger, actionable mitigations
+-Stronger, actionable mitigations
 
 
 In order to give the engaged community more time to consider the changes, a draft was [submitted as a PR](https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/pull/12/changes/0e4ebee22ac162256a676c641292af93bebba0e8) to the [main project](https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main) early.
@@ -27,9 +27,8 @@ The blog below was completed with the assistance of an agentic system I created 
 # What changed in OWASP LLM01:2026 (Prompt Injection) — and why
 
 *Author:* Rachel James — Entry Lead, OWASP Top 10 for LLM Applications, **LLM01:2026 Prompt Injection** <br>
-*Submitted:* 2026-04-29 · *Last reviewed:* 2026-04-29
-*The published entry:* [`2026/LLM01_PromptInjection.md`](https://github.com/OWASP/www-project-top-10-for-large-language-model-applications) — see the OWASP Top 10 for LLM repo for the canonical version.
-*Companion artifact:* a per-suggestion [community changelog](#appendix-a--community-suggestions-changelog) lives at the bottom of this post and credits every survey and Slack contribution we received.
+*Submitted:* 2026-04-29 · *Last reviewed:* 2026-04-29<br>
+*Companion artifact:* a per-suggestion [community changelog](#appendix-a--community-suggestions-changelog) lives at the bottom of this post and credits every survey and Slack contribution we received.<br><br><br>
 
 ---
 
