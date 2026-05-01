@@ -26,7 +26,7 @@ The blog below was completed with the assistance of an agentic system I created 
 
 # What changed in OWASP LLM01:2026 (Prompt Injection) — and why
 
-*Author:* Rachel James — Entry Lead, OWASP Top 10 for LLM Applications, **LLM01:2026 Prompt Injection**
+*Author:* Rachel James — Entry Lead, OWASP Top 10 for LLM Applications, **LLM01:2026 Prompt Injection** <br>
 *Submitted:* 2026-04-29 · *Last reviewed:* 2026-04-29
 *The published entry:* [`2026/LLM01_PromptInjection.md`](https://github.com/OWASP/www-project-top-10-for-large-language-model-applications) — see the OWASP Top 10 for LLM repo for the canonical version.
 *Companion artifact:* a per-suggestion [community changelog](#appendix-a--community-suggestions-changelog) lives at the bottom of this post and credits every survey and Slack contribution we received.
