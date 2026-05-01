@@ -1,0 +1,388 @@
+#Sprint 1 Blog
+
+You can take a look at the [sprints for the Top10 here](https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/blob/main/Sprint%20Plan%20and%20Project%20Timeline%20OWASP%20Top%2010%20for%20LLM%20%282026%29.md).
+
+For Sprint 1 the expectation for leads:
+April 20 – May 4, 2026
+
+Objective: Refresh the existing Top 10 and generate new candidate entries.
+
+Track A: Existing Entry Updates
+Entry leads and sub-teams revise current Top 10 entries
+Focus areas:
+Updated definitions
+Modern, relevant examples
+Stronger, actionable mitigations
+
+In order to give the engaged community more time to consider the changes, a draft was [submitted as a PR](https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/pull/12/changes/0e4ebee22ac162256a676c641292af93bebba0e8) to the [main project](https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main) early.
+Please click the link to the PR to read the suggested entry update in full. This blog is intended to be a companion to the changes for transparency. 
+The blog below was completed with the assistance of an agentic system I created with Claude Code.
+
+# What changed in OWASP LLM01:2026 (Prompt Injection) — and why
+
+*Author:* Rachel James — Entry Lead, OWASP Top 10 for LLM Applications, **LLM01:2026 Prompt Injection**
+*Submitted:* 2026-04-29 · *Last reviewed:* 2026-04-29
+*Companion artifact:* a per-suggestion [community changelog](#appendix-a--community-suggestions-changelog) lives at the bottom of this post and credits every survey and Slack contribution we received.
+
+---
+
+## tl;dr
+
+The 2026 entry for prompt injection is a structural rewrite, not an incremental edit. Five things changed, in order of how much they reshape practitioner work:
+
+1. **A three-axis threat anatomy** — *(a) how the payload reaches the model, (b) how it propagates, (c) how it is encoded* — replaces the old binary direct/indirect framing as the unifying lens. Every control and scenario in the entry is explicitly mapped against these axes.
+2. **The mitigations grow from 7 informal strategies to 11 controls.** Each control now carries a fixed structure: anatomy axes addressed, assumptions, known limits, ≥2 citations from different organizations, and MITRE ATLAS / ATT&CK technique IDs.
+3. **Four entirely new controls** — Unicode-class normalization, capability budgeting against the *Rule of Two*, treating agent memory writes as privileged operations, and pinning/signing/verifying MCP servers and tool packages.
+4. **Three of the nine attack scenarios are new and incident-anchored** — EchoLeak (CVE-2025-32711), Amazon Q (AWS-2025-015 / -019), and trusted-backend MCP injection (Invariant Labs / General Analysis / postmark-mcp).
+5. **A defensive paradigm shift** — adopted from the [UK NCSC's December 2025 position](https://www.ncsc.gov.uk/blog-post/prompt-injection-is-not-sql-injection): there is likely no way to completely *prevent* prompt injection today; controls must focus on *risk and impact reduction*, with no single layer sufficient.
+
+The reference list grew from 14 to 34 sources; the MITRE mapping grew from 3 ATLAS techniques to 9 plus an ATT&CK entry plus OWASP AIVSS. Every "in the wild" claim in the entry has been graded against CTI tradecraft (Admiralty Code) and phrased conservatively — most things called "prompt injection in the wild" in vendor marketing are still researcher proofs-of-concept against production systems, and the 2026 entry says so.
+
+The rest of this post explains *why* each change was made, what research backed it, which community suggestions shaped it, and which suggestions we declined and why.
+
+---
+
+## 1. Why a structural rewrite, not an incremental edit
+
+The 2025 entry was written before three things landed that, taken together, made an incremental update insufficient:
+
+**The NCSC's December 2025 position.** In ["Prompt injection is not SQL injection"](https://www.ncsc.gov.uk/blog-post/prompt-injection-is-not-sql-injection) and the accompanying [news piece](https://www.ncsc.gov.uk/news/mistaking-ai-vulnerability-could-lead-to-large-scale-breaches), the UK NCSC stated that prompt injection "may never be totally mitigated in the way SQL injection attacks can be," and recommended defenders shift focus from prevention to risk and impact reduction. The argument is architectural: LLMs make no distinction between "instructions" and "data" — both are tokens on the same stream — so there is no clean equivalent to parameterized queries. (Tier 1 — government CERT.)
+
+**Significant cybersecurity and OWASP community discussion on if Prompt Injection should be called a Vulnerability** Since Prompt Injection is largely considered to be endemic to the way stochastic influence works in LLM, many argue that it should not be referred to as a vulnerability since it cannot be "patched". 
+
+**Nasr, Carlini et al., October 2025 — ["The Attacker Moves Second"](https://arxiv.org/abs/2510.09023).** Twelve recently-published prompt-injection and jailbreak defenses were re-evaluated under adaptive attack (gradient descent, RL, random search, human exploration, with the attacker given the defense specification). For 10 of the 12, static-attack ASR was near zero while adaptive ASR exceeded 90%. The remaining two were bypassed at ~71% and ~80%. The implication for OWASP: any defense recommended on the basis of static evaluation is likely overstating its effectiveness. (Tier 1 — Carlini's work is among the most-replicated in adversarial ML.)
+
+**The 2025 incident record.** Several production exploits were either disclosed in 2025 or had their first independent corroboration in 2025: [EchoLeak in Microsoft 365 Copilot](https://nvd.nist.gov/vuln/detail/CVE-2025-32711) (CVE-2025-32711, June 2025, zero-click); [the Amazon Q VS Code extension supply-chain incident](https://aws.amazon.com/security/security-bulletins/AWS-2025-015/) (AWS-2025-015, July 2025, ~1M installs reached); [Amazon Q runtime injection](https://aws.amazon.com/security/security-bulletins/AWS-2025-019/) (AWS-2025-019, July 2025); [Invariant Labs' GitHub MCP server vulnerability](https://invariantlabs.ai/blog/mcp-github-vulnerability) (May 2025); [General Analysis' Supabase MCP database leak](https://generalanalysis.com/blog/supabase-mcp-blog) (July 2025); [the postmark-mcp npm backdoor](https://www.koi.ai/blog/postmark-mcp-npm-malicious-backdoor-email-theft) (Koi Security, September 2025; corroborated by [BleepingComputer](https://www.bleepingcomputer.com/news/security/unofficial-postmark-mcp-npm-silently-stole-users-emails/)); and [GitHub Copilot remote code execution](https://embracethered.com/blog/posts/2025/github-copilot-remote-code-execution-via-prompt-injection/) (CVE-2025-53773, August 2025). The 2025 entry's scenarios — bare PoCs, pre-MCP, pre-agentic — no longer represented the dominant attack patterns.
+
+**A new normative standard.** [NIST AI 100-2 E2025](https://csrc.nist.gov/pubs/ai/100/2/e2025/final) (March 2025) supersedes the E2023 draft cited in the 2025 entry. The new version names prompt injection at the top level, distinguishes direct from indirect, and aligns terminology with MITRE ATLAS v5.5.0.
+
+The structural rewrite also responded to community input. The 2026 OWASP kick-off survey collected 123 responses; **31 of them mentioned prompt injection** — the most of any topic. Roughly one-third asked us to *expand* LLM01 to cover indirect/RAG/MCP/multimodal vectors, one-third asked us to *reframe* PI as a delivery mechanism rather than a vulnerability, and one-third asked us to *demote, merge, or split* it. Faced with that disagreement, doing nothing was not an option. The third paragraph of [§4](#4-what-changed-in-response-to-community-input) explains how each direction was handled.
+
+A separate Slack thread surfaced four named contributors — **Gavin**, **F Cano**, **Ariel Fogel**, and **Leburu** — whose direct, in-production observations sharpened the indirect-injection discussion materially. Their input is credited inline below and in the changelog.
+
+---
+
+## 2. The definition: a three-axis threat anatomy
+
+**The 2025 entry opened with:** *"A Prompt Injection Vulnerability occurs when user prompts alter the LLM's behavior or output in unintended ways."*
+
+That sentence has a problem. It centers "user prompts" — which biases the reader toward the direct case — and offers no mechanical model of *why* the LLM gets confused, which leaves practitioners with nothing to threat-model against.
+
+**The 2026 entry opens with:** *"A prompt-injection vulnerability occurs when input to a large language model — direct user input, retrieved documents, tool output, image/audio/video content, intermediate reasoning, or persistent memory — alters the model's behavior in ways the operator did not intend. Because LLMs make no architectural distinction between 'instructions' and 'data' — both are tokens on the same stream — there is no clean equivalent to parameterized queries."*
+
+The architectural sentence is anchored to NCSC's [December 2025 framing](https://www.ncsc.gov.uk/blog-post/prompt-injection-is-not-sql-injection). It gives the reader a one-line model of why the vulnerability exists and why it is not patchable in the SQL-injection sense.
+
+The three-axis anatomy follows immediately:
+
+- **(a) How the payload reaches the model** — direct user input, retrieved content, tool output, MCP channel, persistent memory, or, indirectly, a fine-tuning interface used to craft the payload.
+- **(b) How it propagates** — single-shot, multi-step kill-chain, cross-session through memory or RAG, or self-replicating across agents.
+- **(c) How it is encoded** — plain text, base64 or other obfuscation, invisible Unicode, multimodal or steganographic, low-resource language.
+
+The framework is not new in the abstract — every taxonomy paper from 2024 onward picks a subset of these axes. The contribution is that the 2026 entry uses the same axis labels in the controls and scenarios, so a reader threat-modeling a real system can decompose the attack along (a/b/c), check which axes each control addresses, and identify gaps.
+
+A worked example sits in the entry to make the framework concrete. The [August 2024 ASCII-smuggling demonstration against M365 Copilot](https://embracethered.com/blog/posts/2024/m365-copilot-prompt-injection-tool-invocation-and-data-exfil-using-ascii-smuggling/) by **Johann Rehberger (Embrace The Red)** decomposes as: (a) document/file delivery; (b) single-shot in the targeted session but multi-step in its tool-invocation chain; (c) Tag-block invisible Unicode encoding. Each element of that decomposition points at a different control in the entry — Control 6 for (a), Control 7 for (b), Control 5 for (c) — and a defender can immediately see which ones their system has and which ones it lacks.
+
+The research backing for this section sits in the project's [taxonomy research bibliography](https://github.com/cybershujin/Private-Claude-Code/tree/main/sources/taxonomy_research_2024-2026.md) and the [gap analysis](https://github.com/cybershujin/Private-Claude-Code/tree/main/output/llm01-2025-gap-analysis.md). The single most useful organizing reference was Brodt, Feldman, Schneier, and Nassi's [*Promptware Kill Chain* (arXiv:2601.09625, January 2026)](https://arxiv.org/pdf/2601.09625), which proposes a seven-stage chain that overlaps significantly with our (b) propagation axis. We did not adopt the kill-chain framing wholesale — it is still a preprint and competes with several other taxonomies that have not converged ([taxonomy methodology audit](https://github.com/cybershujin/Private-Claude-Code/tree/main/sources/taxonomy_skeptical_review_2026-04-25.md)) — but it is recommended as a threat-modeling lens under Control 11.
+
+The closing note of the definition section also adds an explicit cross-reference to [LLM02:2025 Sensitive Information Disclosure](https://genai.owasp.org/llmrisk/llm02-sensitive-information-disclosure/) and [LLM06:2025 Excessive Agency](https://genai.owasp.org/llmrisk/llm06-excessive-agency/), with the reminder that LLM01 concerns the input boundary itself — not what the model leaks (that is LLM02) and not what consequential action the leak/manipulation enables (that is LLM06). That framing is a partial concession to community Theme C, which argued PI is a delivery mechanism rather than a vulnerability per se ([§4](#4-what-changed-in-response-to-community-input) details).
+
+---
+
+## 3. Direct vs Indirect: trust-surface stratification
+
+**2025:** A two-paragraph treatment that named the direct/indirect distinction and gave one example each.
+
+**2026:** The same binary is preserved, but the indirect treatment is significantly expanded with three trust-surface strata and a named anti-pattern:
+
+- **Untrusted surfaces** — public web pages, emails from unknown senders, public files. Defenders generally treat these as suspicious. Most prompt-injection research has historically focused here.
+- **Semi-trusted surfaces** — issue titles in a public bug tracker, package READMEs and changelogs, third-party API responses, content the user *chose* to retrieve but did not author.
+- **Trusted surfaces** — code in a repository the developer owns, rows in the developer's own production database, internal documents, the user's own emails or calendar, content authored by colleagues.
+
+The anti-pattern called out explicitly in the entry: *the attacker submits text into a trusted-by-the-user location through a low-privilege channel (a public form, a customer ticket, a community pull request), and waits for the user's MCP-connected agent or developer assistant to read that text while operating under the user's elevated credentials. The agent — not the attacker — performs the privileged action.*
+
+This change is the single most direct response to community input. Slack contributor **Gavin** raised the pattern explicitly, calling it "backend prompt injection":
+
+> "Backend prompt injections — submitting data into a trusted location (e.g., code repo (github copilot vulnerability), github issue titles, or database entries (Supabase vulnerability). The main goal is to target the backend system by getting a user's instance of the LLM (i.e., developer) or MCP service to attack the backend system (i.e., targeting private repository, install malware in code, dump database, etc.). When it comes to guardrails, these input vectors are usually left unprotected because often times there are legitimate business needs where the content should be unmodified. That makes backend prompt injections a distinct threat vector."
+> — Gavin, OWASP community Slack
+
+Slack contributor **Leburu** corroborated the pattern with first-hand observation in production environments and a list of four 2025–2026 incidents that all follow the same shape:
+
+> "In production at Fortune 100 environments, I have seen this exact gap. Content the LLM reads from internal sources gets treated as trusted data when it can also carry instructions. The places I have observed this, internal Confluence pages, GitHub PR titles and issue descriptions, ticketing system descriptions, MCP tool descriptions registered with internal services. The orchestration layer applies less filtering to these because they are authenticated and 'internal' which is the failure mode."
+> — Leburu, OWASP community Slack
+
+Several anonymous survey respondents made the same case. Survey respondent (anonymous, **Row 96**) wrote that "as agentic systems mature, indirect injection via retrieved content is becoming the dominant attack surface in real-world deployments." Row 100 emphasized that "agents don't question what they retrieve." Row 41 flagged tool-description injection and persistent-memory poisoning as new vulnerability classes. Row 30 asked us to "expand prompt injection to include indirect injection via retrieval pipelines and third-party data sources." Row 45 asked for indirect to be its *own entry* on grounds of "vastly different risk profile" — which is the strongest version of the argument.
+
+The 2026 entry kept indirect inside LLM01 rather than splitting it into a separate entry, but elevated it to first-class structural visibility: three of the nine common-examples categories, four of the nine attack scenarios, three of the eleven controls, and the trust-surface stratification all sit on the indirect side. Rationale for not splitting is in [§4](#4-what-changed-in-response-to-community-input) below.
+
+The threat-intel position that ties this together — and that anchors the wording of every "in the wild" claim — is in [`sources/threat-intel-incidents-verified-2026-04-25.md`](https://github.com/cybershujin/Private-Claude-Code/tree/main/sources/threat-intel-incidents-verified-2026-04-25.md). Of twelve incidents verified under Admiralty-Code tradecraft, **zero are tier-(a) runtime prompt-injection campaigns by named threat actors** as of April 2026. Two are tier-(a) supply-chain attacks where prompt-style payloads were the cargo (Amazon Q, postmark-mcp). Nine are tier-(b) researcher proofs-of-concept against production systems. One is a CVE that turned out not to be a prompt injection at all. The 2026 entry phrases each incident accordingly — "researchers demonstrated that…" rather than "threat actors used…" — and where the attack pattern is observed but not the attacker, says so.
+
+### A quick word on jailbreaks vs prompt injection
+
+The 2026 entry calls the boundary out directly in the Direct subsection: prompt injection involves manipulating model responses through specific inputs to alter behavior; jailbreaking is a subset of prompt injection where the attacker goal is to make the model violate its safety protocols. Different defensive surfaces — application-layer for the former, model-layer for the latter — and different mitigations.
+
+This change came from Slack contributor **Ariel Fogel**, whose [Pillar Security terminology piece](https://www.pillar.security/blog/the-terminology-problem-causing-security-teams-real-risks) made the case that blending the two terms is "more often counterproductive" in real defensive work. (Pillar is a vendor — Tier 3 in our citation hierarchy — so we cite it for the definitional framing, not as evidence of efficacy.) The same boundary is drawn by [Simon Willison's canonical 2024 framing](https://simonwillison.net/2024/Mar/5/prompt-injection-jailbreaking/) and by MITRE ATLAS v5.5.0, which makes AML.T0051 (Prompt Injection) and AML.T0054 (Jailbreak) sibling techniques, not nested ones.
+
+---
+
+## 4. From 7 strategies to 11 controls — and the rename
+
+**2025:** "Prevention and Mitigation Strategies" — seven brief entries, two to four sentences each, no metadata.
+
+**2026:** "Strategies" — eleven controls, each formatted with a fixed structure:
+
+- *Action verb in the heading* (e.g., "Constrain what the model is permitted to do…").
+- *Explanation paragraph* with concrete language a developer can act on.
+- *Addresses anatomy axes* — which of (a/b/c) the control covers and partially covers.
+- *Assumes* — the preconditions that have to hold for the control to apply.
+- *Known limits* — what the control does not defend against, with named adaptive bypasses where they exist.
+- *Citations* — at least two, from different organizations.
+- *MITRE ATLAS* — technique IDs.
+
+A one-paragraph preamble reframes the section as defense-in-depth: *"Modern guidance and research indicates that there is likely no way to completely prevent prompt injection today, but that controls should focus on a defense-in-depth posture, with each control recommended below considered one layer and none sufficient on its own."* That sentence is the most direct adoption of the [NCSC December 2025 paradigm shift](https://www.ncsc.gov.uk/blog-post/prompt-injection-is-not-sql-injection) and a partial adoption of survey Theme G — three independent respondents (Rows 2, 36, 70) argued PI is a fundamental property of LLM design and that "managed" rather than "eliminated" is the realistic posture.
+
+The internal drafts considered renaming the section to *Risk and Impact Reduction Strategies* (a literal echo of the NCSC framing). The submitted version uses the shorter "Strategies" heading with the framing in the preamble paragraph — a stylistic choice to keep section headings short, not a change in intent.
+
+### What stayed, what got sharper
+
+- **Control 1 (system-prompt role and capability boundary)** — same intent as 2025 #1. Sharpened by acknowledging the boundary is "partial mitigation across (a) and (b)" and citing [Nasr/Carlini](https://arxiv.org/abs/2510.09023) directly under *Known limits*: an attacker who can observe or infer the system prompt can bypass it.
+- **Control 2 (output schema validation)** — same as 2025 #2. The known-limits language is new and important: *schema validation catches format violations, not semantic manipulation; a structurally valid response can still encode an attacker-chosen action.*
+- **Control 3 (input/output filters at every modality boundary)** — the 2025 entry had this as text-focused. 2026 expands it to vision encoders, audio transcription, OCR, and low-resource-language degradation, with the [arXiv:2504.11168 finding](https://arxiv.org/html/2504.11168v2) that refusal rates can fall from ~79% in English to ~23% in some low-resource languages on identical content. The vision side is anchored on [Clusmann et al., *Nature Communications* 2024](https://www.nature.com/articles/s41467-024-55631-x), which demonstrated sub-visual prompt injection across all four frontier vision-language models tested in an oncology-imaging study, and on [JPS, ACM MM 2025](https://dl.acm.org/doi/10.1145/3746027.3754561) for multimodal LLMs more broadly.
+- **Control 4 (minimum permissions; credentials in app code)** — same intent as 2025 #4. The 2026 wording makes the architectural claim explicit: provision the *application*, not the *model*, with API tokens. Multi-agent pipelines can re-introduce the full property set at a downstream node, which is named under *Known limits*.
+- **Control 6 (structurally separate channel for external content)** — same intent as 2025 #6 ("Segregate and identify external content"). Backed by [Chen et al. *StruQ*, USENIX Security 2025](https://www.usenix.org/system/files/usenixsecurity25-chen-sizhe.pdf) on structured-channel separation and by [Microsoft Research's *spotlighting* paper](https://www.microsoft.com/en-us/research/publication/defending-against-indirect-prompt-injection-attacks-with-spotlighting/) (vendor — cited for the capability description; not as efficacy evidence). *Known limits* is sharper than the 2025 wording: an attacker who knows the marking scheme can mimic the marker format; multi-hop retrieval can introduce payloads after initial separation; and StruQ-class defenses were bypassed under adaptive attack in [Nasr/Carlini 2025](https://arxiv.org/abs/2510.09023).
+- **Control 7 (explicit human confirmation)** — same intent as 2025 #5. The wording is sharpened with named failure modes: invisible-character smuggling can cause the *displayed* action to differ from the *executed* action ([Embrace The Red 2024](https://embracethered.com/blog/posts/2024/m365-copilot-prompt-injection-tool-invocation-and-data-exfil-using-ascii-smuggling/)); approval fatigue degrades reviewer judgment at high volume.
+
+### What is new — and what specific 2025 incident drove each addition
+
+**Control 5 — strip or reject Tag-block, variation-selector, and zero-width Unicode characters at every boundary.** This is split out from Control 3 because the threat model is distinct enough to warrant its own treatment. Anchor incident: the [August 2024 ASCII-smuggling proof-of-concept](https://embracethered.com/blog/posts/2024/m365-copilot-prompt-injection-tool-invocation-and-data-exfil-using-ascii-smuggling/) demonstrated MFA-code exfiltration from a controlled M365 Copilot demo workspace by hiding instructions in Unicode Tag-block (U+E0000–U+E007F) characters. Subsequent [variant-selector techniques](https://embracethered.com/blog/posts/2025/sneaky-bits-and-ascii-smuggler/) reduced cost to roughly two invisible characters per byte. The control specifies the exact Unicode classes to normalize and where (every ingest and every render boundary) — concrete enough to write a regex against. Cross-citation comes from the [Promptfoo ASCII-smuggling red-team plugin documentation](https://www.promptfoo.dev/docs/red-team/plugins/ascii-smuggling/), which gives defenders a way to test the control. (Tier 3 vendor; cited for the *capability* — having a red-team scanner for invisible Unicode — not for the product.)
+
+**Control 8 — budget agent capabilities using the Rule of Two as a minimum baseline.** Identify whether each agent simultaneously has access to (A) untrusted input, (B) sensitive systems / private data, and (C) state change / external comms. Any [A,B,C] configuration requires per-action human approval. The framework was proposed by [Meta AI in October 2025](https://ai.meta.com/blog/practical-ai-agent-security/) (vendor — cited as a framework proposal, not as evidence of efficacy) and is independently endorsed in spirit by [NIST AI 100-2 E2025](https://csrc.nist.gov/pubs/ai/100/2/e2025/final) and the [CISA / FBI / NSA / ACSC + allied joint guidance on AI in operational technology](https://www.cisa.gov/sites/default/files/2025-12/joint-guidance-principles-for-the-secure-integration-of-artificial-intelligence-in-operational-technology-508c.pdf) (December 2025). Anchor incident: the [Amazon Q July 2025 runtime injection (AWS-2025-019)](https://aws.amazon.com/security/security-bulletins/AWS-2025-019/), where an [A,B] configuration was exploited to wipe a developer's local file system and delete cloud resources after injected instructions bypassed Human-in-the-Loop confirmation. Critically, the 2026 entry quotes the [Noma Security critique](https://noma.security/blog/mcp-servers-agentic-risk-and-the-framework-that-protects-it/) under *Known limits* — the rule says nothing about agent autonomy depth, and a multi-agent pipeline can re-introduce the full property set at a downstream node. Treat the rule as a floor, not a ceiling.
+
+**Control 9 — treat agent memory writes as privileged operations.** Log the prompt and context that triggered each write; classify the content for instruction or role-modification language; require approval before instruction-containing memories persist across sessions. Anchor incident: the [February 2025 PoC against Gemini Advanced](https://embracethered.com/blog/posts/2025/google-gemini-memory-persistence-prompt-injection/) by Johann Rehberger demonstrated cross-session memory poisoning via delayed tool invocation. MITRE ATLAS classifies this as [AML.T0080.001](https://atlas.mitre.org/) (AI Agent Context Poisoning: Memory). Survey respondent (anonymous, **Row 41**) made an explicit case for elevating memory poisoning, citing [the MINJA paper (NeurIPS 2025)](https://arxiv.org/abs/2503.03704) at 98.2% injection success and Microsoft's documented commercial-exploitation observations. This control is the structural answer.
+
+**Control 10 — pin, sign, and verify every MCP server and third-party tool package; audit tool descriptions for hidden instructions; monitor for changes in tool composition.** Anchor incidents: [postmark-mcp (Koi Security, September 2025)](https://www.koi.ai/blog/postmark-mcp-npm-malicious-backdoor-email-theft) — a malicious npm package silently BCC'd email content to an attacker for approximately eight days, affecting an estimated 300 organizations (corroborated by [BleepingComputer](https://www.bleepingcomputer.com/news/security/unofficial-postmark-mcp-npm-silently-stole-users-emails/)); [Invariant Labs' GitHub MCP server vulnerability (May 2025)](https://invariantlabs.ai/blog/mcp-github-vulnerability) — a poisoned GitHub issue caused an MCP-connected coding assistant to exfiltrate private repository contents; [General Analysis' Supabase MCP database leak (July 2025)](https://generalanalysis.com/blog/supabase-mcp-blog) — a customer support ticket caused Cursor's Supabase MCP server, running with `service_role` privileges that bypass row-level security, to dump the production database into the user-visible support thread. Academic backing comes from [Hou et al., ACM TOSEM 2025](https://dl.acm.org/doi/10.1145/3796519). The control surfaces *both* an injection path (Invariant, General Analysis) and a software supply-chain compromise (postmark), which is why it cross-maps to MITRE ATT&CK's [T1195 — Supply Chain Compromise](https://attack.mitre.org/techniques/T1195/) in addition to ATLAS techniques.
+
+**Control 11 — test against adaptive attackers; reject vendor or internal claims based only on static-attack evaluations.** Replaces 2025 #7. The case for the change sits in [Nasr, Carlini et al., October 2025](https://arxiv.org/abs/2510.09023): for most of 12 recently-published defenses, static ASR was near zero while adaptive ASR exceeded 90%. The control names two specific evaluation harnesses to baseline against — [AgentDojo (NeurIPS 2024)](https://arxiv.org/abs/2406.13352) and [JailbreakBench (NeurIPS 2024)](https://arxiv.org/abs/2404.01318) — and points to [Microsoft MSRC's LLMail-Inject challenge](https://www.microsoft.com/en-us/msrc/blog/2025/03/announcing-the-winners-of-the-adaptive-prompt-injection-challenge-llmail-inject/) as a partially-competitive adaptive evaluation in practice (vendor — cited as a challenge format, not as efficacy claim). The procurement implication is explicit: any defense whose ASR is reported on a static suite should be re-tested adaptively before relying on it.
+
+The mitigations deep-dive that informed this section is at [`output/mitigations-draft-2026-04-25.md`](https://github.com/cybershujin/Private-Claude-Code/tree/main/output/mitigations-draft-2026-04-25.md). The skeptic-review pressure-testing each headline claim is at [`sources/skeptic-review-p0-claims-2026-04-25.md`](https://github.com/cybershujin/Private-Claude-Code/tree/main/sources/skeptic-review-p0-claims-2026-04-25.md) — including a correction we made before submission, where an earlier draft conflated two separate Nature-published findings about reasoning models (the conflation has been removed; the Nature paper on reasoning models as autonomous jailbreak agents is not the citation for "extended reasoning weakens the target's own safety," that comes from H-CoT and Mousetrap).
+
+---
+
+## 5. Example Attack Scenarios — refresh and anatomy annotation
+
+The 2025 entry had nine prose-only scenarios. The 2026 entry has nine scenarios as well, but four of them are largely or entirely new and every scenario carries an explicit anatomy annotation (a/b/c) plus inline citations.
+
+**Carried forward, with anatomy annotations:**
+
+- *Scenario 1 — Direct Injection.* Same customer-support chatbot prose as 2025. Anatomy: (a) direct user input · (b) single-shot · (c) plain text.
+- *Scenario 2 — Indirect Injection via Retrieved Web Content.* Same web-summary-with-image-exfiltration prose. Anchored on [Greshake et al. 2023](https://arxiv.org/abs/2302.12173) and the [NCSC 2025 piece](https://www.ncsc.gov.uk/blog-post/prompt-injection-is-not-sql-injection).
+- *Scenario 3 — Unintentional Injection.* The job-description-PDF and AI-detection scenario, anchored on [Kai Greshake's "Inject My PDF"](https://kai-greshake.de/posts/inject-my-pdf).
+- *Scenario 5 — Payload Splitting.* Same scenario; anatomy makes the recombination explicit.
+
+**Updated:**
+
+- *Scenario 4 — RAG Repository Poisoning.* Renamed from "Intentional Model Influence." Now cites [PoisonedRAG (USENIX Security 2025)](https://www.usenix.org/system/files/usenixsecurity25-zou-poisonedrag.pdf) — five injected documents achieve attack-success rates above 95% on standard QA corpora. The cross-session / cross-user propagation is now explicit in the anatomy annotation.
+- *Scenario 6 — Multimodal Steganographic Injection.* The 2025 entry described pixel-level adversarial perturbation generally. The 2026 version cites [Clusmann et al., *Nature Communications* 2024](https://www.nature.com/articles/s41467-024-55631-x) — all four tested vision-language models susceptible — and [JPS (ACM MM 2025)](https://dl.acm.org/doi/10.1145/3746027.3754561) for multimodal jailbreak via combined visual perturbation and textual steering.
+
+**New, and incident-anchored:**
+
+- *Scenario 7 — Zero-Click Document-Borne Agentic Exfiltration.* Anchored on [EchoLeak (CVE-2025-32711)](https://nvd.nist.gov/vuln/detail/CVE-2025-32711) — Aim Security researchers demonstrated that a crafted email could trigger Microsoft 365 Copilot to exfiltrate organizational data without user interaction, bypassing both the deployed prompt-injection classifier and the link-redaction filter. Patched June 2025; published as a paper at [arXiv:2509.10540](https://arxiv.org/abs/2509.10540) and AAAI Fall Symposium 2025.
+- *Scenario 8 — Agentic Destructive Command Execution.* Two events from July 2025 illustrate the same impact through different attack vectors. In one, an attacker compromised access to the Amazon Q VS Code extension repository and committed a system prompt instructing deletion of home directories and AWS resources; the malicious version reached approximately one million installs ([AWS-2025-015](https://aws.amazon.com/security/security-bulletins/AWS-2025-015/)). In the other, a separately demonstrated runtime injection caused Amazon Q to execute arbitrary code through prompt injection alone ([AWS-2025-019](https://aws.amazon.com/security/security-bulletins/AWS-2025-019/)). Same impact, different root cause — supply-chain in one, runtime in the other — which is why the scenario covers both with a paired anatomy annotation. (Per CTI verification, the supply-chain event is tier-(a) in-the-wild; the runtime event is tier-(b) researcher PoC.)
+- *Scenario 9 — Trusted-Backend Indirect Injection through MCP.* Three incidents in one scenario: Invariant Labs (May 2025), General Analysis (July 2025), postmark-mcp (September 2025). Slack contributor **Leburu**'s production-pattern observation ("trusted sources carry instructions that the agent reads with full trust") is the operational summary; this scenario is the documentation of it.
+
+**Removed:**
+
+- *Scenario 8 (2025): Adversarial Suffix.* The Zou et al. attack is preserved in the Common Examples list (#5 → #6 in 2026 numbering) and folded into Control 11 as an exemplar of why static evaluation under-reports ASR. As a stand-alone scenario it had been overtaken by more impactful production incidents.
+- *Scenario 9 (2025): Multilingual / Obfuscated Attack.* Preserved in the Common Examples list (#8 in 2026 numbering) with sharper figures from [arXiv:2504.11168](https://arxiv.org/html/2504.11168v2). As a stand-alone scenario it duplicated content already covered in Common Examples and Control 3.
+
+The choice to keep nine scenarios and refresh four was deliberate. An entry with twenty-one scenarios is unreadable; an entry with five misses the indirect-injection / agentic / supply-chain reality that the community asked us to surface.
+
+---
+
+## 6. References and frameworks — what backs the entry
+
+The reference list grew from 14 sources to 34. A short audit of where the new sources came from:
+
+- **Government and standards (8 sources):** [NIST AI 100-2 E2025](https://csrc.nist.gov/pubs/ai/100/2/e2025/final), [NIST AI 600-1](https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf), [NCSC blog](https://www.ncsc.gov.uk/blog-post/prompt-injection-is-not-sql-injection) and [news piece](https://www.ncsc.gov.uk/news/mistaking-ai-vulnerability-could-lead-to-large-scale-breaches), [CISA + allies OT joint guidance](https://www.cisa.gov/sites/default/files/2025-12/joint-guidance-principles-for-the-secure-integration-of-artificial-intelligence-in-operational-technology-508c.pdf), [NVD CVE-2025-32711](https://nvd.nist.gov/vuln/detail/CVE-2025-32711), [INCIBE-CERT CVE-2024-5184 advisory](https://www.incibe.es/en/incibe-cert/early-warning/vulnerabilities/cve-2024-5184), MITRE ATLAS / ATT&CK.
+- **Peer-reviewed academic (10 sources):** [Greshake et al. 2023](https://arxiv.org/abs/2302.12173), [Zou et al. 2023 (universal adversarial)](https://arxiv.org/abs/2307.15043), [Clusmann et al. *Nature Communications* 2024](https://www.nature.com/articles/s41467-024-55631-x), [JPS (Wang et al., ACM MM 2025)](https://dl.acm.org/doi/10.1145/3746027.3754561), [PoisonedRAG (USENIX Security 2025)](https://www.usenix.org/system/files/usenixsecurity25-zou-poisonedrag.pdf), [StruQ (USENIX Security 2025)](https://www.usenix.org/system/files/usenixsecurity25-chen-sizhe.pdf), [Hou et al. ACM TOSEM 2025](https://dl.acm.org/doi/10.1145/3796519), [AgentDojo (NeurIPS 2024)](https://arxiv.org/abs/2406.13352), [JailbreakBench (NeurIPS 2024)](https://arxiv.org/abs/2404.01318), [Reddy & Gujral on EchoLeak (AAAI FSS 2025 / arXiv:2509.10540)](https://arxiv.org/abs/2509.10540).
+- **Independent researchers / preprints (6 sources):** [Nasr, Carlini et al., October 2025](https://arxiv.org/abs/2510.09023), [Labunets et al. on fun-tuning](https://arxiv.org/abs/2501.09798), [arXiv:2504.11168 on code-switching and Unicode transcoding](https://arxiv.org/html/2504.11168v2), Embrace The Red series (Aug 2024 ASCII smuggling, 2025 sneaky bits, Feb 2025 Gemini memory, 2025 GitHub Copilot RCE), [Kai Greshake's "Inject My PDF"](https://kai-greshake.de/posts/inject-my-pdf).
+- **Disclosure / threat-intel sources (5 sources):** [Invariant Labs](https://invariantlabs.ai/blog/mcp-github-vulnerability), [General Analysis](https://generalanalysis.com/blog/supabase-mcp-blog), [Koi Security](https://www.koi.ai/blog/postmark-mcp-npm-malicious-backdoor-email-theft), [BleepingComputer](https://www.bleepingcomputer.com/news/security/unofficial-postmark-mcp-npm-silently-stole-users-emails/), AWS Security Bulletins ([AWS-2025-015](https://aws.amazon.com/security/security-bulletins/AWS-2025-015/), [AWS-2025-019](https://aws.amazon.com/security/security-bulletins/AWS-2025-019/)).
+- **Vendor sources, marked as such (5 sources):** [Microsoft Research on spotlighting](https://www.microsoft.com/en-us/research/publication/defending-against-indirect-prompt-injection-attacks-with-spotlighting/), [Microsoft MSRC LLMail-Inject](https://www.microsoft.com/en-us/msrc/blog/2025/03/announcing-the-winners-of-the-adaptive-prompt-injection-challenge-llmail-inject/), [Meta Rule of Two](https://ai.meta.com/blog/practical-ai-agent-security/), [Noma Security critique](https://noma.security/blog/mcp-servers-agentic-risk-and-the-framework-that-protects-it/), [Promptfoo docs](https://www.promptfoo.dev/docs/red-team/plugins/ascii-smuggling/). Each is labeled `— Vendor` inline in the entry and cited only where a non-vendor source independently corroborates the underlying point or where the citation describes a *capability* rather than a product.
+
+The MITRE mapping grew from 3 ATLAS techniques (T0051.000 / T0051.001 / T0054) to 9, plus an ATT&CK mapping (T1195 — Supply Chain Compromise) and a reference to OWASP AIVSS. New ATLAS additions: T0068 (Prompt Obfuscation), T0080.001 (Memory Poisoning), T0099 (Tool Data Poisoning), T0086 (Exfiltration via Tool Invocation), T0102 (Generate Malicious Commands), T0105 (Escape to Host), T0110 (Tool Poisoning). Each is mapped to the relevant control or scenario rather than listed in isolation. The mapping work is at [`sources/mitre-mapping-novel-techniques-2026-04-25.md`](https://github.com/cybershujin/Private-Claude-Code/tree/main/sources/mitre-mapping-novel-techniques-2026-04-25.md). Note: ATLAS technique-page URLs at `atlas.mitre.org/techniques/AML.TXXXX` are currently brittle; the canonical machine-readable source is the YAML at [github.com/mitre-atlas/atlas-data](https://github.com/mitre-atlas/atlas-data).
+
+---
+
+## 7. What changed in response to community input
+
+This section explains the disposition of every distinct community suggestion. The full row-by-row changelog is the appendix of this post; this section is the narrative summary so a reader does not have to read 37 table rows to get the shape of the response.
+
+The community fell into roughly five non-trivial positions on what to do with LLM01 — a split summarized in the [survey analysis document](https://github.com/cybershujin/Private-Claude-Code/tree/main/survey%20and%20suggestions/OWASP_LLM_Survey_2026_Prompt_Injection_Analysis.md) under Themes A through G. Some of the positions are mutually exclusive. The 2026 entry could not satisfy all of them; what follows is the editorial logic for which were adopted.
+
+### Adopted in full
+
+**Theme A — keep LLM01 and expand it to center indirect injection.** Strongest community signal in the survey, with at least nine respondents independently calling for expansion (Rows 30, 41, 45, 75, 92, 96, 100, 102, 109) plus Slack contributors Gavin and Leburu. Implementation: trust-surface stratification under Indirect Injection; three new scenarios (7, 8, 9) that are entirely or substantially indirect / agentic / supply-chain; three new controls (8, 9, 10) covering capability budgeting, memory writes, and MCP supply chain.
+
+**Slack contribution — backend / trusted-source injection (Gavin and Leburu).** Adopted both as a structural change (the trust-surface stratification) and as an explicit anti-pattern in the Indirect Injection prose ("the agent — not the attacker — performs the privileged action"). Leburu's mitigation framing — provenance metadata, author-based trust, capability-based scoping — is reflected in Controls 6, 9, and 10.
+
+**Slack contribution — terminology distinction between PI and jailbreak (Ariel Fogel).** Adopted as a dedicated paragraph in the Direct Injection subsection.
+
+**Memory poisoning as a first-class control (Row 41, Row 4, Embrace The Red Gemini PoC).** Adopted as Control 9 with the MITRE ATLAS T0080.001 mapping.
+
+**MCP supply-chain integrity (Row 4, Row 22, Row 41, Row 100, Row 103, Gavin, Leburu).** Adopted as Control 10 plus Scenario 9.
+
+### Adopted as framing, not structural change
+
+**Theme G — PI is a fundamental design property, not a fully-fixable bug** (Rows 2, 36, 70). Adopted in the preamble to the Strategies section, in the "Known limits" subsections of every control, and in the closing note that adaptive bypass remains plausible. Not adopted as structural demotion (see below) because the community signal for Theme G was about *expectation-setting*, not about removing the entry.
+
+**Theme C — PI is a delivery mechanism / vector, not a vulnerability** (Rows 3-Q9, 5, 64, 70). Partially adopted: the closing note of the definition section now cross-references LLM02 (Sensitive Information Disclosure) and LLM06 (Excessive Agency) explicitly, and explains that LLM01 concerns the input boundary itself. Not adopted as structural demotion because (a) the community signal for Theme A was numerically stronger; (b) NIST AI 100-2 E2025 and MITRE ATLAS v5.5.0 both retain prompt injection as a top-level attack class, and changing OWASP's structure would create cross-reference friction; (c) the 2025–2026 incident record makes prompt injection the most-cited initial vector in agentic breaches, which argues against demotion at this point in the cycle.
+
+### Partially adopted
+
+**Theme B — split direct vs indirect into separate entries** (Rows 30, 45, 96, 97, 100). The structural split was not adopted; the substantive elevation of indirect was. Indirect injection now occupies first-class structural visibility within LLM01 — three of the nine common-examples categories, four of the nine scenarios, three of the eleven controls, the trust-surface stratification, and the most-cited 2025–2026 incident record. Splitting into two top-level entries was declined because it would (a) require renumbering across the entire LLM Top 10, (b) split the threat anatomy in a way that does not match how production incidents actually decompose (most have both a direct and an indirect component), and (c) double the cross-reference cost for readers without adding meaningful clarity. **Row 45's argument that "indirect carries a vastly different risk profile" is correct on the merits**; we addressed it through structural visibility rather than through entry separation.
+
+### Deferred to future cycles
+
+**RAG-specific risks as a separate entry (Row 13).** Indirect injection through RAG is covered under the Indirect Injection trust-surface model and as Scenario 4. A standalone RAG entry is plausible in a future cycle but is not warranted in 2026; the gap analysis flags an LLM02 / LLM05 boundary discussion as the place to take this up.
+
+**Cross-model adversarial transferability in heterogeneous pipelines (Row 102, Q9).** Genuinely novel as a category; the academic literature does not yet have a stable taxonomy. Recommended for future cycles. Mentioned in Control 11 as a testing consideration.
+
+**Inference risk — what can the model deduce by combining permitted information (Row 63).** The framing is sound but the LLM01 entry is not the right home for it. More naturally fits LLM02 (Sensitive Information Disclosure). Forwarded to that entry's lead.
+
+**Provider susceptibility benchmarks (Row 69).** A useful thing to have, and AgentDojo and JailbreakBench are mentioned in Control 11 — but they are evaluation harnesses, not consensus per-model benchmarks. No vendor-neutral cross-model PI benchmark exists yet; deferred.
+
+### Rejected — out of scope (different vulnerability class)
+
+These suggestions raised real concerns but they are not prompt-injection concerns and adopting them into LLM01 would dilute the entry. Per the user's standing direction: "It is entirely defensible to say things were rejected because they ought to be covered in other entries or are not really talking about the prompt injection vulnerability itself but rather impact or risk, or that its some other type or attack or vulnerability entirely."
+
+- **Identity & authentication for AI agents (Row 14, Row 102).** A distinct architectural concern about agent-to-agent authentication. Belongs to LLM06 (Excessive Agency) and to the Agentic AI Security and Governance project, not to LLM01.
+- **Context Isolation Failure (Row 19).** An authorization-boundary architectural flaw, not an input-boundary concern. Belongs to LLM02 and LLM06.
+- **Lateral Movement across LLM components (Row 29).** A propagation dynamic, not an input vulnerability. The Promptware Kill Chain reference under Control 11's "Adversarial Testing" wording is the partial accommodation.
+- **Capability Scope Creep (Row 103, first half).** A governance / agent-design concern. Belongs to LLM06 (Excessive Agency).
+- **LLM02 renaming to "Agentic Execution Flaws" (Row 109).** A sister-entry suggestion forwarded to that entry's lead.
+
+### Rejected — naming or structure
+
+- **Rename "prompt injection" → "input manipulation" (Row 47).** Declined. The term *prompt injection* is the named class in [NIST AI 100-2 E2025](https://csrc.nist.gov/pubs/ai/100/2/e2025/final), in [MITRE ATLAS v5.5.0](https://atlas.mitre.org/), and across the entire 2024–2026 academic literature. A rename would create cross-reference friction with normative standards and force every defender's internal documentation to update. The terminology distinction Row 47 cares about (security issue vs known LLM behavior) is real and is addressed in the Definition section's closing note.
+- **Merge LLM07 (System Prompt Leakage) into LLM01 (Theme D — Rows 1, 5, 25, 86).** Declined. LLM07 is an *outcome category* — what the model leaks about its own configuration — and LLM01 is an *input-boundary category*. The two are causally related (system-prompt leakage is often the observable artifact of a successful prompt injection) but conceptually distinct, and most security frameworks model cause and effect separately. The 2026 entry adds an explicit cross-reference from LLM01's closing note to LLM07; merging them would force a three-layer hierarchy (direct PI / indirect PI / leaked-system-prompt symptoms) that is harder to teach than the current cause-effect cross-reference.
+
+### Rejected — proposed demotion
+
+**Theme E — demote PI to a vector under LLM06 (Rows 52, 3-Q9).** Declined. Two respondents argued for demotion against nine arguing for expansion; the net signal is for retention with expansion. Beyond the count, three substantive reasons: (a) NIST AI 100-2 E2025 and MITRE ATLAS v5.5.0 both retain prompt injection as a top-level attack class, and OWASP's role is to align with normative frameworks, not lead them; (b) the 2025–2026 incident record places prompt injection at the entry point of nearly every published agentic breach, which argues against making it harder to find in the documentation; (c) Row 3 (one of the demote-leaning respondents) also wrote, in the same survey, that LLM01 must be retained because "core LLM risks don't disappear just because you wrap the model in an agent" — the survey signal is internally mixed even within one respondent.
+
+The full per-suggestion changelog is at the appendix below.
+
+---
+
+## 8. Methodology, evidence-tier discipline, and the limits of this rewrite
+
+### How the research was done
+
+Five workstreams informed the rewrite:
+
+1. **Gap analysis** — [`output/llm01-2025-gap-analysis.md`](https://github.com/cybershujin/Private-Claude-Code/tree/main/output/llm01-2025-gap-analysis.md). Identifies ten P0/P1 structural gaps between the November 2024 LLM01 entry and the April 2026 research frontier.
+2. **Taxonomy review** — [`sources/taxonomy_research_2024-2026.md`](https://github.com/cybershujin/Private-Claude-Code/tree/main/sources/taxonomy_research_2024-2026.md) plus two skeptical reviews ([part 1](https://github.com/cybershujin/Private-Claude-Code/tree/main/sources/taxonomy_skeptical_review_2026-04-25.md), [part 2](https://github.com/cybershujin/Private-Claude-Code/tree/main/sources/taxonomy_skeptical_review_part2_2026-04-26.md)). 21 academic and standards sources audited; OWASP and NIST identified as terminology anchors; the Promptware Kill Chain flagged as sound-with-caveats.
+3. **Literature scan** — [`sources/owasp-llm01-update-research-2026-04-25.md`](https://github.com/cybershujin/Private-Claude-Code/tree/main/sources/owasp-llm01-update-research-2026-04-25.md). Empirical research post-November 2024 organized by attack vector. Each finding tagged Tier 1/2/3.
+4. **Skeptic review of headline claims** — [`sources/skeptic-review-p0-claims-2026-04-25.md`](https://github.com/cybershujin/Private-Claude-Code/tree/main/sources/skeptic-review-p0-claims-2026-04-25.md). Five P0 claims pressure-tested before they could ship in the entry: NCSC paradigm shift, Nasr/Carlini bypass figures, EchoLeak attribution, reasoning-model attack surface, fun-tuning ASR. One conflation found and corrected.
+5. **CTI verification** — [`sources/threat-intel-incidents-verified-2026-04-25.md`](https://github.com/cybershujin/Private-Claude-Code/tree/main/sources/threat-intel-incidents-verified-2026-04-25.md). 12 named incidents classified under Admiralty Code; tier-(a) / (b) / (c) discipline applied to every "in the wild" claim in the entry.
+
+### Vendor-neutrality discipline
+
+Per the project's standing rules, vendor sources are labeled `— Vendor` inline in the entry and cited only where (a) a non-vendor source independently corroborates the same finding, or (b) the citation describes a *capability* (e.g., "input/output policy enforcement at the LLM boundary") rather than a *product*. We do not recommend any commercial product by name. The relevant sentence from the project charter: *"Describe the capability, and let readers choose vendors."*
+
+### Evidence-tier discipline
+
+Three tiers, applied to every claim:
+
+- **(a) Observed in the wild** — confirmed threat-actor use, with incident report and CTI cross-check, or government CERT advisory, or victim disclosure, or court filing.
+- **(b) Researcher proof-of-concept** — works in a lab, paper, or red-team report, but no documented actor use.
+- **(c) Theoretical / speculative** — proposed but not demonstrated end-to-end against a deployed production system.
+
+The blunt summary, as of April 2026: most "prompt injection attacks" in vendor marketing are tier (b). The 2026 entry's Scenario 8 supply-chain branch (Amazon Q AWS-2025-015) and Scenario 9 postmark-mcp segment are tier (a) supply-chain incidents. Most other named scenarios are tier (b) PoCs against production systems, and the entry says "researchers demonstrated" rather than "threat actors used."
+
+### Known limits of this rewrite
+
+Honesty about what the 2026 entry does not solve:
+
+- **The browser-agent attack surface is moving fast.** Brave's [unseeable prompt injections work](https://brave.com/blog/unseeable-prompt-injections/), [Comet research](https://brave.com/blog/comet-prompt-injection/), and the broader trend toward LLM-driven browsing are 2025–2026 developments that may need their own scenario or even their own entry in the next cycle. The 2026 entry covers them under the Indirect Injection / trust-surface framing but does not give them dedicated treatment.
+- **Multimodal injection taxonomy is not stable.** The literature has [Clusmann et al.](https://www.nature.com/articles/s41467-024-55631-x) on vision in oncology, [JPS](https://dl.acm.org/doi/10.1145/3746027.3754561) on multimodal LLMs broadly, and several preprints on audio and video, but no agreed-upon sub-taxonomy. The 2026 entry treats multimodal as one common-examples bucket and one scenario; this is likely to subdivide in 2027.
+- **Reasoning-channel attacks are an emerging surface.** [H-CoT (arXiv:2502.12893)](https://arxiv.org/abs/2502.12893), [A Mousetrap (arXiv:2502.15806)](https://arxiv.org/abs/2502.15806), and [Chain-of-Thought Hijacking (arXiv:2510.26418)](https://arxiv.org/abs/2510.26418) are PoCs against reasoning-model safety; the corresponding defense research is just emerging ([Chain-of-Guardrails, October 2025](https://arxiv.org/abs/2510.21285)). The 2026 entry mentions reasoning-channel content under the LLM02 cross-reference but does not yet have a dedicated control or scenario. This was an explicit editorial choice — the surface is real but the threat model is not yet stable.
+- **MITRE ATLAS technique-page URLs are brittle.** Direct URLs at `atlas.mitre.org/techniques/AML.TXXXX` returned intermittent 404s during research; the canonical YAML at [github.com/mitre-atlas/atlas-data](https://github.com/mitre-atlas/atlas-data) is the authoritative source.
+- **Some 2025–2026 incidents post-date the submission.** The entry will need a 2026-end refresh.
+
+These limits will be explicitly acknowledged in the next cycle's gap analysis.
+
+---
+
+## 9. Acknowledgements
+
+This entry was written, but it was not written in isolation. The community contributed in three ways: through the 123-response 2026 OWASP kick-off questionnaire (31 of the responses mentioned prompt injection); through a focused Slack thread; and through the years of public researcher work that the entry cites.
+
+Survey respondents are credited by row number rather than by name because the survey export is anonymized; their full thematic treatment is in the [survey analysis document](https://github.com/cybershujin/Private-Claude-Code/tree/main/survey%20and%20suggestions/OWASP_LLM_Survey_2026_Prompt_Injection_Analysis.md) and individually in the appendix below. If you authored a survey response and would like to be named in a future revision, please reach out via the OWASP project channels.
+
+The Slack contributors are credited by name — **Gavin**, **F Cano**, **Ariel Fogel**, and **Leburu** — and their specific suggestions are listed in the changelog. Particular thanks to Leburu for the production-incident pattern observation that anchored Scenario 9, and to Gavin for the "backend prompt injection" framing that became the trusted-surface anti-pattern. Ariel Fogel's pointer to [Pillar Security's terminology piece](https://www.pillar.security/blog/the-terminology-problem-causing-security-teams-real-risks) drove the explicit jailbreak / prompt-injection boundary in the Definition.
+
+The researcher community whose work is cited throughout — Greshake, Carlini, Nasr, Clusmann, Zou, Chen, Hou, Wang, Debenedetti, Chao, Labunets, Reddy & Gujral, and the Embrace The Red disclosures by Johann Rehberger — does the empirical work that makes this entry possible. The entry is not original research; it is a synthesis of theirs.
+
+To file a follow-up suggestion for the next cycle, use the [OWASP Top 10 for LLM project channels](https://genai.owasp.org/) — issues, the GenAI Security Project mailing list, or the project Slack.
+
+---
+
+## License and reuse
+
+This blog post is published under [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/), consistent with the OWASP project's licensing. Quote, reuse, and redistribute with attribution.
+
+---
+
+# Appendix A — Community suggestions changelog
+
+This is the per-suggestion record of every distinct piece of community input received for LLM01:2026, with disposition and rationale. Suggestions from the 2026 OWASP kick-off questionnaire are referenced by anonymous row number; Slack contributors are named.
+
+**Disposition vocabulary:** *Adopted in full* · *Adopted as framing* · *Adopted with attribution* · *Partially adopted* · *Deferred to future cycle* · *Rejected — out of scope* · *Rejected — naming/structure* · *Acknowledged — sister entry*
+
+**Theme groupings** match those in the [survey analysis document](https://github.com/cybershujin/Private-Claude-Code/tree/main/survey%20and%20suggestions/OWASP_LLM_Survey_2026_Prompt_Injection_Analysis.md): Theme A (keep & expand), Theme B (split direct vs indirect), Theme C (reframe as vector), Theme D (merge with LLM07), Theme E (demote / retire), Theme F (adjacent risks distinct from PI), Theme G (fundamental-flaw framing).
+
+| #    | Source       | Contributor        | Suggestion (paraphrase)                                      | Theme           | Disposition                                       | Where it landed (or why not)                                 |
+| ---- | ------------ | ------------------ | ------------------------------------------------------------ | --------------- | ------------------------------------------------- | ------------------------------------------------------------ |
+| 1    | Survey Q7    | Anonymous, Row 3   | LLM Top 10 remains necessary in parallel with Agentic Top 10 | A               | Adopted as framing                                | Implicit in the entry's existence; LLM01 retained as a top-level entry |
+| 2    | Survey Q9    | Anonymous, Row 3   | PI is a delivery mechanism, not a vulnerability; eventually fold into LLM05/LLM06 | C               | Partially adopted                                 | Definition closing note cross-references LLM02 and LLM06; structural demotion declined (see §7) |
+| 3    | Survey Q8    | Anonymous, Row 2   | Many experts believe PI can be managed but not eliminated; emphasize relative risk reduction | G               | Adopted as framing                                | Strategies preamble; "Known limits" subsections in every control |
+| 4    | Survey Q8    | Anonymous, Row 5   | System Prompt Leakage is an outcome of PI, not separate; treat PI as a feature and focus on outcomes | C, D            | Rejected — naming/structure                       | LLM07 is an outcome category; cross-reference added but merge declined (see §7) |
+| 5    | Survey Q7+Q8 | Anonymous, Row 30  | Reframe to distinguish model-layer from app-layer; expand PI to include indirect via retrieval, structured tool manipulation, memory integrity | A               | Adopted in full                                   | Trust-surface stratification; Controls 9 and 10; Scenarios 4, 7, 9 |
+| 6    | Survey Q8    | Anonymous, Row 36  | System Prompt Leakage should be expected; add guardrails to PI section (LLM-as-judge, consensus) | G               | Adopted as framing                                | Strategies preamble; Control 11 covers the testing aspect    |
+| 7    | Survey Q7+Q8 | Anonymous, Row 41  | Include persistent memory & context manipulation; tool description injection; memory poisoning more advanced than PI | A               | Adopted in full                                   | Control 9 (memory writes); Control 10 (MCP supply chain); Common Examples #6 |
+| 8    | Survey Q8    | Anonymous, Row 45  | Indirect PI should be its own entry — "vastly different risk profile" | B               | Partially adopted                                 | Indirect elevated to first-class structural visibility; structural split declined for cross-reference cost reasons (see §7) |
+| 9    | Survey Q8    | Anonymous, Row 52  | Remove LLM01 as standalone; make it a vector under LLM06     | E               | Rejected — proposed demotion                      | Counter-signal numerically stronger (≥9 expand vs 2 demote); NIST and ATLAS retain top-level (see §7) |
+| 10   | Survey Q8    | Anonymous, Row 63  | Expand to address inference risk; define prohibited inference classes and test | F               | Deferred to future cycle                          | Better fit for LLM02; forwarded to that entry's lead         |
+| 11   | Survey Q8    | Anonymous, Row 64  | PI is technique to cause other vulnerabilities; maps to most other LLM Top 10 entries | C               | Adopted as framing                                | Definition closing note acknowledges LLM01 is the input boundary; cross-references LLM02/LLM06 |
+| 12   | Survey Q7+Q8 | Anonymous, Row 70  | LLM Top 10 is foundation for Agentic Top 10; PI is a fundamental flaw (no discrete binder between trusted/untrusted) | C, G            | Adopted as framing                                | Strategies preamble; NCSC framing in Definition              |
+| 13   | Survey Q7+Q8 | Anonymous, Row 75  | Don't sunset LLM Top 10; reorganize entries by AI lifecycle  | A               | Acknowledged — sister entry                       | Lifecycle reorganization is a project-level decision, not an LLM01 decision |
+| 14   | Survey Q8    | Anonymous, Row 86  | Several entries are bullet points for others; deduplicate    | D               | Rejected — naming/structure                       | LLM01 / LLM02 / LLM06 / LLM07 are causally related but conceptually distinct (see §7) |
+| 15   | Survey Q7    | Anonymous, Row 92  | LLM risks remain in agentic systems; keep LLM Top 10 as baseline | A               | Adopted as framing                                | Implicit in the entry's existence                            |
+| 16   | Survey Q8    | Anonymous, Row 96  | Expand to distinguish direct (user input) vs indirect (external data); include sub-categories, attack chains, detection strategies | A, B            | Adopted in full                                   | Trust-surface stratification; Common Examples #2 and #3; Scenarios 7–9 |
+| 17   | Survey Q8    | Anonymous, Row 97  | Direct vs indirect differ in attacker position, attack surface, detection, controls | B               | Partially adopted                                 | Indirect elevated structurally; split declined (same as #8)  |
+| 18   | Survey Q8    | Anonymous, Row 100 | Refresh around indirect PI; focus on poisoned tool responses, MCP manifests, compromised embeddings; "agents don't question what they retrieve" | A               | Adopted in full                                   | Trust-surface stratification; Scenario 9; Control 10         |
+| 19   | Survey Q8    | Anonymous, Row 109 | Expand LLM02 to "Agentic Execution Flaws"                    | F               | Acknowledged — sister entry                       | Forwarded to LLM02 entry lead                                |
+| 20   | Survey Q8    | Anonymous, Row 116 | Compile separate OWASP Top 10 Prompt Injection section; seeking collaboration | A               | Acknowledged — sister project                     | Project-level decision; respondent's interest passed to project leadership |
+| 21   | Survey Q8    | Anonymous, Row 1   | Fold LLM07 into PI as recon step; distinguish safety vs security | D               | Rejected — naming/structure                       | Same rationale as #4 / #14 (see §7)                          |
+| 22   | Survey Q9    | Anonymous, Row 13  | Create explicit RAG-specific risks entry (retrieval poisoning, embedding leakage, vector DB compromise) | F               | Deferred to future cycle                          | Indirect via RAG covered as sub-category and Scenario 4; standalone entry warranted in a future cycle |
+| 23   | Survey Q8    | Anonymous, Row 14  | Identity & authentication for agents is distinct from PI; don't conflate | F               | Rejected — out of scope                           | Belongs to LLM06 / Agentic AI project                        |
+| 24   | Survey Q9    | Anonymous, Row 19  | Context Isolation Failure is architectural, not input-driven | F               | Rejected — out of scope                           | Belongs to LLM02 and LLM06                                   |
+| 25   | Survey Q9    | Anonymous, Row 22  | MCP-centric flaws (injection via tool descriptions)          | F               | Adopted in full                                   | Control 10; Scenario 9                                       |
+| 26   | Survey Q8    | Anonymous, Row 29  | Lateral Movement is distinct from Excessive Agency or PI     | F               | Adopted as framing                                | Promptware Kill Chain referenced under Control 11            |
+| 27   | Survey Q7    | Anonymous, Row 35  | Separate training-time attacks (source poisoning) from runtime (prompt injection) | F               | Adopted as framing                                | Definition makes this implicit by scoping to "input to the model"; cross-references separate training-data risks |
+| 28   | Survey Q7+Q9 | Anonymous, Row 47  | Distinguish security issue from known LLM behavior; rename to "input manipulation" | F               | Rejected — naming/structure                       | Rename creates cross-reference friction with NIST AI 100-2 E2025 and MITRE ATLAS v5.5.0 (see §7) |
+| 29   | Survey Q8    | Anonymous, Row 48  | Include multimodal injection                                 | F               | Adopted in full                                   | Common Examples #4; Scenario 6                               |
+| 30   | Survey Q9    | Anonymous, Row 4   | Memory persistence / state poisoning & MCP as trust boundary problems | F               | Adopted in full                                   | Control 9 (memory); Control 10 (MCP); Common Examples #6     |
+| 31   | Survey Q10   | Anonymous, Row 69  | Metrics on which models more susceptible to PI               | F               | Deferred to future cycle                          | No vendor-neutral cross-model PI benchmark exists yet; AgentDojo and JailbreakBench mentioned in Control 11 as harnesses |
+| 32   | Survey Q8+Q9 | Anonymous, Row 102 | (a) Agent identity confusion; (b) cross-model adversarial transferability | F               | Rejected — out of scope (a) / Deferred (b)        | (a) belongs to Agentic AI project; (b) deferred — no stable taxonomy yet |
+| 33   | Survey Q9    | Anonymous, Row 103 | (a) Capability Scope Creep; (b) Context Trust Boundary Failure | F, A            | Rejected — out of scope (a) / Adopted in full (b) | (a) belongs to LLM06; (b) Adopted via trust-surface stratification and Control 6 |
+| 34   | Slack        | Gavin              | Add "context-data" / "backend prompt injection" as third category — submitting data into a trusted location (code repo, GitHub issue titles, DB entries) | A               | Adopted in full                                   | Trusted-surface anti-pattern in Indirect Injection; Common Examples #3; Control 10; Scenario 9 |
+| 35   | Slack        | F Cano             | Pillar Security advisory: prompt injection leads to RCE and sandbox escape in Antigravity | A               | Acknowledged — incident reference                 | Antigravity-specific incident not directly cited; covered in spirit by Scenario 8 (agentic destructive command execution) |
+| 36   | Slack        | Ariel Fogel        | Distinguish jailbreak from PI — blending the two is counterproductive in defensive work | F (terminology) | Adopted with attribution                          | Direct Injection subsection's dedicated jailbreak vs PI paragraph |
+| 37   | Slack        | Leburu             | Trusted internal sources (Confluence, PR titles, issues, MCP descriptions) carry instructions; orchestration applies less filtering. Mitigations: provenance metadata, author-based trust, capability-based scoping | A               | Adopted in full                                   | Trusted-surface stratification (Indirect); Control 6 (channel separation); Control 10 (MCP supply chain). Production-incident pattern anchors Scenario 9 |
+
+**Summary counts.** Adopted in full: 11 · Adopted as framing: 9 · Adopted with attribution: 1 · Partially adopted: 4 · Deferred to future cycle: 4 · Rejected — out of scope: 4 · Rejected — naming/structure: 5 · Acknowledged — sister entry/project: 3 · Total distinct suggestions credited: 37.
+
+---
+
+*Last reviewed: 2026-04-29. Comments, corrections, or follow-up suggestions: open an issue on the [OWASP Top 10 for LLM repo](https://genai.owasp.org/) or contact the entry lead.*
