@@ -8,11 +8,17 @@ April 20 – May 4, 2026
 Objective: Refresh the existing Top 10 and generate new candidate entries.
 
 Track A: Existing Entry Updates
+
 Entry leads and sub-teams revise current Top 10 entries
+
 Focus areas:
+
 Updated definitions
+
 Modern, relevant examples
+
 Stronger, actionable mitigations
+
 
 In order to give the engaged community more time to consider the changes, a draft was [submitted as a PR](https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/pull/12/changes/0e4ebee22ac162256a676c641292af93bebba0e8) to the [main project](https://github.com/GenAI-Security-Project/GenAI-LLM-Top10/tree/main) early.
 Please click the link to the PR to read the suggested entry update in full. This blog is intended to be a companion to the changes for transparency. 
